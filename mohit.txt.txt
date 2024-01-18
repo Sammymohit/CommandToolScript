@@ -1,0 +1,325 @@
+import mysql.connector;
+from mysql.connector import  Error;
+from dotenv import load_dotenv;
+import os;
+load_dotenv()
+###
+
+
+#  check connection
+def check_sql_connection(ids):
+      try:
+        connection = mysql.connector.connect(
+        host= os.environ.get('DB_HOST'),
+        port=os.environ.get('DB_PORT'),
+        database=os.environ.get('DB_DATABASE'),
+        user=os.environ.get('DB_USER'),
+        password=os.environ.get('DB_PASSWORD')
+      )
+        if connection.is_connected():
+          cursor = connection.cursor()
+          query = "SELECT configid, rcBaseRoot, networkbaseroot, subpath, reAction, Status FROM pratibimb_backup_tools WHERE configid=1".format(', '.join([str(id) for id in ids]))
+          cursor.execute(query)
+          results = cursor.fetchall()
+          return results
+        else:
+          return None
+      except Error as e:
+          print(e) 
+ 
+ 
+#  Second Function for List command
+def check_sql_connection1(ids):
+      try:
+        connection = mysql.connector.connect(
+        host= os.environ.get('DB_HOST'),
+        port=os.environ.get('DB_PORT'),
+        database=os.environ.get('DB_DATABASE'),
+        user=os.environ.get('DB_USER'),
+        password=os.environ.get('DB_PASSWORD')
+      )
+        if connection.is_connected():
+            cursor = connection.cursor()
+            if not ids:
+                # Retrieve all data if ids is empty
+                query = "SELECT configid, rcBaseRoot, networkbaseroot, subpath, reAction, Status FROM pratibimb_backup_tools"
+                cursor.execute(query)
+            else:
+                # Fetch data based on the provided ids
+                placeholders = ', '.join(['%s' for _ in ids])
+                query = f"SELECT configid, rcBaseRoot, networkbaseroot, subpath, reAction, Status FROM pratibimb_backup_tools WHERE configid IN ({placeholders})"
+                cursor.execute(query, ids)
+
+            results = cursor.fetchall()
+            return results
+      except Error as e:
+          print(e) 
+  
+ 
+ 
+ 
+# Insertion function 
+def insert_data(configid,rcBase,networkBR,subpath):
+      try:
+        connection = mysql.connector.connect(
+        host= os.environ.get('DB_HOST'),
+        port=os.environ.get('DB_PORT'),
+        database=os.environ.get('DB_DATABASE'),
+        user=os.environ.get('DB_USER'),
+        password=os.environ.get('DB_PASSWORD')
+      )
+        if connection.is_connected():
+          cursor = connection.cursor()
+          query = "INSERT INTO pratibimb_backup_tools (configid, rcBaseRoot,networkbaseroot, Subpath) VALUES (%s, %s, %s,%s)"
+          cursor.execute(query, (configid,rcBase,networkBR,subpath))
+          
+          connection.commit()
+          cursor.close()
+      except Error as e:
+        print(e)
+
+
+
+# Remove Data function 
+def remove_data(ids):
+    try:
+        connection = mysql.connector.connect(
+            host = "localhost",
+            port = "3306",
+            database = "pratibimb_backup_tools",
+            user = "root",
+            password = "testing12#",
+        )
+        if connection.is_connected():
+            cursor = connection.cursor()
+            query = "DELETE FROM pratibimb_backup_tools WHERE configid=%s"
+            cursor.execute(query,(ids))
+            
+            connection.commit()
+            cursor.close()
+    except Error as e:
+        print(e)
+
+# check_sql_connection(5)
+
+  
+
+# https://realpython.com/if-name-main-python/
+# Entry point for the script, execute only when called as a script, not as module
+if __name__ == '__main__':
+    print("Import this as a module")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+import subprocess;
+import click;
+import tabulate;
+from tqdm import tqdm;
+from time import sleep;
+
+# importing local files
+import dataLibrary;
+
+
+def print_options():
+    print("""    
+    help [action] - Get help on the action
+
+    run [id(s)] -  Run the backup config(s). Comma sperated values 
+    list [id(s)] - List all the Backup Config(s)
+    add - Add New Backup Config
+    rm [id(s)] - Deactivate Backup
+
+    Bulk Upload
+    import <csv filepath>
+
+    DB Related options
+    db-check - check db connectivity
+
+    Config Relate Options
+    config get [key] - print(s) the configuration for respective key or all keys
+    config set [key] [value] - set a configuration
+    """)
+
+
+# Defining the click options Here
+@click.command()
+@click.argument("command",type=click.Choice(["Run","List","Add","Remove"],case_sensitive=False))
+@click.option("--ids","-i",multiple=True,default=[False],type=int,help="Id to process")
+@click.option("--dbx","-dbx",multiple=True,type=str,help="Environment varible")
+@click.option("--ignore-case","-ic",is_flag=True,default=True,help="Ignore case")
+@click.option("--p","-P",is_flag=True,default=False,help="P")
+@click.option("--configid", "-cId", type=int, help="Configuration ID")
+@click.option("--rcBase", "-rcB", type=str, help="rcBaseRoot Path")
+@click.option("--networkBR", "-nBR", type=str, help="NetworkBaseRoot Path")
+@click.option("--subpath", "-sP", type=str, help="SubPath")
+
+
+
+# ,configid,rcBase,networkBR,subpath
+#  Parse_arguments Function
+def parse_arguments(command,ids,dbx,ignore_case,p,configid,rcbase,networkbr,subpath):
+    #  Calling function of "Run" command
+    if command == "Run":
+        run_command(ids,dbx,ignore_case,p)
+    
+    # Calling function of "List" command
+    elif command == "List":
+        list_command(ids)
+    
+    elif command == "Add":
+        add_command(configid,rcbase,networkbr,subpath)  
+    
+    # Calling function of "Remove" command
+    elif command == "Remove":
+        remove_command(ids)
+        
+# Run_command function  
+def run_command(ids,dbx,ignore_case,p):
+    ids = list(ids)
+    
+    # Calling Check_sql_connection function
+    data = dataLibrary.check_sql_connection(ids)
+
+    if not data:
+        print("No data retrieved from check_sql_connection")
+        return
+
+    # Data Segeration 
+    rcbaseroot = data[0][1]
+    networkbaseroot = data[0][2]
+    subpath  = data[0][3]
+    reAction = data[0][4]
+
+   # Preparing command for Run operation
+    rclone_command = ['rclone',reAction]
+    
+   # Adding additional Parameter to the command 
+    if ignore_case:
+        rclone_command.append("--ignore-case")
+    if p:
+        rclone_command.append("-p")
+      
+    #  Preparing Path for the Operation 
+    source_path = f"{dbx[0]}://{rcbaseroot}/{subpath}"
+    destination_path = networkbaseroot+ subpath
+    rclone_command.append(source_path)
+    rclone_command.append(destination_path)
+  
+    total = 0
+    for num in tqdm([1,2,3,4],desc="Executing"):
+      sleep(0.20)
+      total = total + num
+    try:
+    # Command Execution 
+     subprocess.run(rclone_command)
+    except subprocess.CalledProcessError:
+    # Error Handling 
+     print("Not Found")
+
+
+#  List Operation ----------
+def list_command(ids):
+    ids = list(ids)
+    
+    if not ids:
+        # if id is none
+       data = dataLibrary.check_sql_connection1()
+    else:
+       #  Calling the Check_sql_connection function
+       data = dataLibrary.check_sql_connection1(ids)
+  
+    # Data not found then return 
+    if not data:
+        print("No data found for the given ID.")
+        return
+    try:
+        # Preparing table headers
+        headers = ["Config ID", "rcRoot", "NetworkPath", "Subpath", "Action", "Status"]
+        
+        # Preparing table rows
+        rows = [list(row) for row in data]
+        
+        # Displaying the table
+        print(tabulate.tabulate(rows, headers=headers, tablefmt="grid"))
+             # Error Handling 
+    except subprocess.CalledProcessError:
+        print("No Data Found")
+    
+
+# Add_command for Add operation
+def add_command(configid,rcbase,networkBR,subpath):
+    # Progress Bar 
+    total = 0 
+    for num in tqdm([1,2,3,4],desc = "Exectuing"):
+        sleep(0.20)
+        total = total + num
+    dataLibrary.insert_data(configid,rcbase,networkBR,subpath)
+    print("Insertion is completed")
+
+
+
+# # Remove command Function
+def remove_command(ids):
+    # Progress Bar 
+    total = 0 
+    for num in tqdm([1,2,3,4],desc="Executing"):
+        sleep(0.20)    
+        total = total + num 
+        
+    dataLibrary.remove_data(ids)
+    print("Data has been removed")
+
+
+
+# https://realpython.com/if-name-main-python/
+# Entry point for the script, execute only when called as a script, not as module
+if __name__ == '__main__':
+    parse_arguments()
+
+
+
+
+
+
+
+
+
+
+
+
